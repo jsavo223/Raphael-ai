@@ -1,33 +1,23 @@
-import json
-from pathlib import Path
 from typing import List, Optional
 
 from schemas.mission import Mission
 from services.redaction import redact_data
+from services.safe_json import SafeJsonStore
 
 
 class MissionStore:
     def __init__(self, path: str = "data/missions.json"):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.json_store = SafeJsonStore(path, default_value=[])
         self.missions: List[Mission] = self._load()
 
     def _load(self) -> List[Mission]:
-        if not self.path.exists():
-            return []
-
-        with self.path.open("r", encoding="utf-8") as file:
-            raw_missions = json.load(file)
-
+        raw_missions = self.json_store.load()
         return [Mission(**mission) for mission in raw_missions]
 
     def _save(self):
-        with self.path.open("w", encoding="utf-8") as file:
-            json.dump(
-                [redact_data(mission.model_dump(mode="json")) for mission in self.missions],
-                file,
-                indent=2,
-            )
+        self.json_store.save(
+            [redact_data(mission.model_dump(mode="json")) for mission in self.missions]
+        )
 
     def add(self, mission: Mission):
         redacted_mission = Mission(**redact_data(mission.model_dump(mode="json")))
