@@ -172,8 +172,9 @@ class ControlCore:
         if suggestion is None:
             return None
 
-        suggestion.status = "approved"
+        suggestion.status = "test_required"
         suggestion.approved_at = utc_now().isoformat()
+        suggestion.test_required_at = utc_now().isoformat()
         suggestion.rejected_at = None
 
         if reason:
@@ -192,6 +193,42 @@ class ControlCore:
 
         if reason:
             suggestion.evidence.append(f"rejection_reason={reason}")
+
+        return self.training_store.update(suggestion)
+
+    def mark_training_suggestion_tested(
+        self,
+        suggestion_id: str,
+        test_notes: Optional[str] = None,
+    ):
+        suggestion = self.training_store.get(suggestion_id)
+
+        if suggestion is None:
+            return None
+
+        if suggestion.status not in ("test_required", "tested"):
+            return None
+
+        suggestion.status = "tested"
+        suggestion.tested_at = utc_now().isoformat()
+        suggestion.test_notes = test_notes
+
+        return self.training_store.update(suggestion)
+
+    def apply_training_suggestion(self, suggestion_id: str, reason: Optional[str] = None):
+        suggestion = self.training_store.get(suggestion_id)
+
+        if suggestion is None:
+            return None
+
+        if suggestion.status != "tested":
+            return None
+
+        suggestion.status = "applied"
+        suggestion.applied_at = utc_now().isoformat()
+
+        if reason:
+            suggestion.evidence.append(f"apply_reason={reason}")
 
         return self.training_store.update(suggestion)
 
