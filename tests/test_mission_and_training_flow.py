@@ -8,6 +8,7 @@ from services.control_core import ControlCore
 from services.event_store import EventStore
 from services.mission_store import MissionStore
 from services.rate_limit import InMemoryRateLimiter
+from services.sandbox_policy import SandboxPolicy
 from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
 
@@ -147,3 +148,36 @@ def test_tool_registry_denies_risky_tools_by_default():
 
         with pytest.raises(PermissionDeniedError):
             registry.require_allowed(tool_name, approved=True)
+
+
+def test_sandbox_policy_requires_approval_for_terminal_and_files(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    policy = SandboxPolicy(str(workspace))
+
+    safe_file = workspace / "notes.txt"
+    safe_file.write_text("safe", encoding="utf-8")
+
+    with pytest.raises(PermissionDeniedError):
+        policy.validate_command("python --version", approved=False)
+
+    with pytest.raises(PermissionDeniedError):
+        policy.validate_file_path(str(safe_file), approved=False)
+
+
+def test_sandbox_policy_blocks_dangerous_commands_and_outside_files(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    policy = SandboxPolicy(str(workspace))
+
+    safe_file = workspace / "notes.txt"
+    safe_file.write_text("safe", encoding="utf-8")
+
+    assert policy.validate_file_path(str(safe_file), approved=True) is True
+    assert policy.validate_command("python --version", approved=True) is True
+
+    with pytest.raises(PermissionDeniedError):
+        policy.validate_command("rm -rf /", approved=True)
+
+    with pytest.raises(PermissionDeniedError):
+        policy.validate_file_path(str(tmp_path / "outside.txt"), approved=True)
