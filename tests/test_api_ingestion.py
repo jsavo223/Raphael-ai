@@ -145,6 +145,47 @@ def test_external_ingestion_api_rejects_oversized_source_fields(client):
     assert response.status_code == 422
 
 
+def test_external_ingestion_api_rejects_unknown_source_type(client):
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": "unknown_source",
+            "source_id": "unknown-source-1",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "External source type must be one of" in response.json()["detail"]
+
+
+def test_external_ingestion_api_rejects_blank_source_metadata(client):
+    blank_source_type_response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": "   ",
+            "source_id": "source-1",
+        },
+    )
+    blank_source_id_response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": "web_page",
+            "source_id": "   ",
+        },
+    )
+
+    assert blank_source_type_response.status_code == 403
+    assert "External source type cannot be empty" in blank_source_type_response.json()["detail"]
+    assert blank_source_id_response.status_code == 403
+    assert "External source ID cannot be empty" in blank_source_id_response.json()["detail"]
+
+
 def test_external_ingestion_api_accepts_safe_content(client):
     response = client.post(
         "/ingestion/external",
