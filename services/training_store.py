@@ -1,33 +1,23 @@
-import json
-from pathlib import Path
 from typing import List, Optional
 
 from schemas.training import TrainingSuggestion
 from services.redaction import redact_data
+from services.safe_json import SafeJsonStore
 
 
 class TrainingStore:
     def __init__(self, path: str = "data/training_suggestions.json"):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.json_store = SafeJsonStore(path, default_value=[])
         self.suggestions: List[TrainingSuggestion] = self._load()
 
     def _load(self) -> List[TrainingSuggestion]:
-        if not self.path.exists():
-            return []
-
-        with self.path.open("r", encoding="utf-8") as file:
-            raw_suggestions = json.load(file)
-
+        raw_suggestions = self.json_store.load()
         return [TrainingSuggestion(**suggestion) for suggestion in raw_suggestions]
 
     def _save(self):
-        with self.path.open("w", encoding="utf-8") as file:
-            json.dump(
-                [redact_data(suggestion.model_dump(mode="json")) for suggestion in self.suggestions],
-                file,
-                indent=2,
-            )
+        self.json_store.save(
+            [redact_data(suggestion.model_dump(mode="json")) for suggestion in self.suggestions]
+        )
 
     def add(self, suggestion: TrainingSuggestion):
         redacted_suggestion = TrainingSuggestion(
