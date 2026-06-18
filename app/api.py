@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
+from core.errors import PermissionDeniedError
 from services.auth import require_owner_api_key
 from services.chat_service import ChatService
 from services.control_core import ControlCore
@@ -10,6 +11,8 @@ from services.limits import (
     MAX_CHAT_MESSAGE_LENGTH,
     MAX_EVIDENCE_ITEM_LENGTH,
     MAX_EVIDENCE_ITEMS,
+    MAX_EXTERNAL_CONTENT_LENGTH,
+    MAX_EXTERNAL_SOURCE_FIELD_LENGTH,
     MAX_MISSION_GOAL_LENGTH,
     MAX_TRAINING_DESCRIPTION_LENGTH,
     MAX_TRAINING_FIELD_LENGTH,
@@ -40,6 +43,13 @@ class ChatRequest(BaseModel):
 
 class MissionRequest(BaseModel):
     goal: str = Field(..., min_length=1, max_length=MAX_MISSION_GOAL_LENGTH)
+
+
+class ExternalContentRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=MAX_EXTERNAL_CONTENT_LENGTH)
+    source_type: str = Field(..., min_length=1, max_length=MAX_EXTERNAL_SOURCE_FIELD_LENGTH)
+    source_id: str = Field(..., min_length=1, max_length=MAX_EXTERNAL_SOURCE_FIELD_LENGTH)
+    trusted: bool = False
 
 
 class TrainingSuggestionRequest(BaseModel):
@@ -84,6 +94,31 @@ def chat(
     _owner: bool = Depends(require_owner_api_key),
 ):
     return chat_service.handle_message(request.message)
+
+
+@app.post("/ingestion/external")
+def ingest_external_content(
+    request: ExternalContentRequest,
+    _rate_limit: bool = Depends(require_rate_limit),
+    _owner: bool = Depends(require_owner_api_key),
+):
+    try:
+        ingested = control_core.ingest_external_content(
+            content=request.content,
+            source_type=request.source_type,
+            source_id=request.source_id,
+            trusted=request.trusted,
+        )
+    except PermissionDeniedError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+    return {
+        "source_type": ingested.source_type,
+        "source_id": ingested.source_id,
+        "safe_content": ingested.safe_content,
+        "redacted": ingested.redacted,
+        "trusted": ingested.trusted,
+    }
 
 
 @app.get("/health")
