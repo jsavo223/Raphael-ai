@@ -2,6 +2,7 @@ import hashlib
 import json
 from typing import Optional
 
+from agents.training_agent import TrainingAgent
 from core.ids import new_id
 from core.time import utc_now
 from schemas.event import Event
@@ -10,6 +11,7 @@ from services.event_store import EventStore
 from services.executor import Executor
 from services.mission_store import MissionStore
 from services.plan_engine import create_simple_plan
+from services.training_store import TrainingStore
 
 
 class ControlCore:
@@ -17,6 +19,8 @@ class ControlCore:
         self.executor = Executor()
         self.event_store = EventStore()
         self.mission_store = MissionStore()
+        self.training_store = TrainingStore()
+        self.training_agent = TrainingAgent(self.training_store)
 
     def _build_event(
         self,
@@ -129,6 +133,35 @@ class ControlCore:
             "last_event_type": last_event.event_type if last_event else None,
             "last_updated_at": mission.updated_at,
         }
+
+    def analyze_mission_for_training(self, mission_id: str):
+        mission = self.mission_store.get(mission_id)
+
+        if mission is None:
+            return None
+
+        events = self.event_store.get_by_mission(mission_id)
+        return self.training_agent.analyze_mission(mission, events)
+
+    def create_training_suggestion(
+        self,
+        title: str,
+        description: str,
+        target_agent: str = "general_agent",
+        category: str = "capability_improvement",
+        priority: str = "medium",
+        source_mission_id: Optional[str] = None,
+        evidence=None,
+    ):
+        return self.training_agent.create_suggestion(
+            title=title,
+            description=description,
+            target_agent=target_agent,
+            category=category,
+            priority=priority,
+            source_mission_id=source_mission_id,
+            evidence=evidence or [],
+        )
 
     def create_mission(self, goal: str):
         mission_id = new_id("mission")
