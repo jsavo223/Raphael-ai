@@ -127,6 +127,16 @@ def ingest_external_content(
     }
 
 
+@app.get("/audit/tool-activity")
+def list_tool_audit_activity(
+    _rate_limit: bool = Depends(require_rate_limit),
+    _owner: bool = Depends(require_owner_api_key),
+):
+    return {
+        "records": control_core.tool_audit_log.get_all()
+    }
+
+
 @app.get("/health")
 def detailed_health(
     _rate_limit: bool = Depends(require_rate_limit),
