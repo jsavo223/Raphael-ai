@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 from services.auth import require_owner_api_key
 from services.control_core import ControlCore
@@ -37,11 +37,12 @@ class TrainingSuggestionRequest(BaseModel):
     source_mission_id: Optional[str] = Field(default=None, max_length=MAX_TRAINING_FIELD_LENGTH)
     evidence: List[str] = Field(default_factory=list, max_length=MAX_EVIDENCE_ITEMS)
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        for item in self.evidence:
+    @validator("evidence")
+    def validate_evidence_items(cls, evidence):
+        for item in evidence:
             if len(item) > MAX_EVIDENCE_ITEM_LENGTH:
                 raise ValueError("Evidence item is too long.")
+        return evidence
 
 
 class TrainingDecisionRequest(BaseModel):
