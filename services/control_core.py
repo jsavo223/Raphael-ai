@@ -12,6 +12,7 @@ from services.executor import Executor
 from services.mission_store import MissionStore
 from services.plan_engine import create_simple_plan
 from services.sandbox_policy import SandboxPolicy
+from services.tool_audit import ToolAuditLog
 from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
 
@@ -25,6 +26,7 @@ class ControlCore:
         self.training_agent = TrainingAgent(self.training_store)
         self.tool_registry = ToolRegistry()
         self.sandbox_policy = SandboxPolicy()
+        self.tool_audit_log = ToolAuditLog()
 
     def _build_event(
         self,
@@ -89,20 +91,47 @@ class ControlCore:
         approved: bool = False,
         command: Optional[str] = None,
         file_path: Optional[str] = None,
+        mission_id: Optional[str] = None,
+        task_id: Optional[str] = None,
     ):
-        permission = self.tool_registry.require_allowed(tool_name, approved=approved)
+        metadata = {
+            "approved": approved,
+            "command": command,
+            "file_path": file_path,
+        }
 
-        if tool_name == "terminal_command":
-            if command is None:
-                raise ValueError("terminal_command requires a command value.")
-            self.sandbox_policy.validate_command(command, approved=approved)
+        try:
+            permission = self.tool_registry.require_allowed(tool_name, approved=approved)
 
-        if tool_name in ("file_read", "file_write"):
-            if file_path is None:
-                raise ValueError(f"{tool_name} requires a file_path value.")
-            self.sandbox_policy.validate_file_path(file_path, approved=approved)
+            if tool_name == "terminal_command":
+                if command is None:
+                    raise ValueError("terminal_command requires a command value.")
+                self.sandbox_policy.validate_command(command, approved=approved)
 
-        return permission
+            if tool_name in ("file_read", "file_write"):
+                if file_path is None:
+                    raise ValueError(f"{tool_name} requires a file_path value.")
+                self.sandbox_policy.validate_file_path(file_path, approved=approved)
+
+            self.tool_audit_log.record(
+                tool_name=tool_name,
+                allowed=True,
+                reason="tool_request_allowed",
+                mission_id=mission_id,
+                task_id=task_id,
+                metadata=metadata,
+            )
+            return permission
+        except Exception as error:
+            self.tool_audit_log.record(
+                tool_name=tool_name,
+                allowed=False,
+                reason=str(error),
+                mission_id=mission_id,
+                task_id=task_id,
+                metadata=metadata,
+            )
+            raise
 
     def get_mission_progress(self, mission_id: str):
         mission = self.mission_store.get(mission_id)
