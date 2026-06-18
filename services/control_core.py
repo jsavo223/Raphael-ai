@@ -3,6 +3,7 @@ import json
 from typing import Optional
 
 from agents.training_agent import TrainingAgent
+from core.errors import PermissionDeniedError
 from core.ids import new_id
 from core.time import utc_now
 from schemas.event import Event
@@ -94,12 +95,43 @@ class ControlCore:
         source_id: str,
         trusted: bool = False,
     ):
-        return self.untrusted_ingestion.ingest(
-            content=content,
-            source_type=source_type,
-            source_id=source_id,
-            trusted=trusted,
-        )
+        metadata = {
+            "source_type": source_type,
+            "source_id": source_id,
+            "content_length": len(content or ""),
+            "trusted": trusted,
+        }
+
+        try:
+            ingested = self.untrusted_ingestion.ingest(
+                content=content,
+                source_type=source_type,
+                source_id=source_id,
+                trusted=trusted,
+            )
+            self.tool_audit_log.record(
+                tool_name="external_ingestion",
+                allowed=True,
+                reason="external_ingestion_allowed",
+                metadata={
+                    **metadata,
+                    "source_type": ingested.source_type,
+                    "source_id": ingested.source_id,
+                    "redacted": ingested.redacted,
+                },
+            )
+            return ingested
+        except PermissionDeniedError as error:
+            self.tool_audit_log.record(
+                tool_name="external_ingestion",
+                allowed=False,
+                reason="external_ingestion_blocked",
+                metadata={
+                    **metadata,
+                    "error": str(error),
+                },
+            )
+            raise
 
     def validate_tool_request(
         self,
