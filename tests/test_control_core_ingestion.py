@@ -2,6 +2,7 @@ import pytest
 
 from core.errors import PermissionDeniedError
 from services.control_core import ControlCore
+from services.redaction import REDACTED_VALUE
 
 
 def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
@@ -18,6 +19,21 @@ def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
     assert ingested.source_id == "page_1"
     assert ingested.trusted is False
     assert "summarize project requirements" in ingested.safe_content
+
+
+def test_control_core_redacts_external_source_metadata(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    core = ControlCore()
+
+    ingested = core.ingest_external_content(
+        content="This page says Raphael should summarize project requirements.",
+        source_type="web_page",
+        source_id="https://example.test/page?token=source-secret-value",
+    )
+
+    assert REDACTED_VALUE in ingested.source_id
+    assert "source-secret-value" not in ingested.source_id
+    assert ingested.redacted is True
 
 
 def test_control_core_blocks_hostile_external_content(tmp_path, monkeypatch):
