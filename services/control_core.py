@@ -15,6 +15,7 @@ from services.sandbox_policy import SandboxPolicy
 from services.tool_audit import ToolAuditLog
 from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
+from services.untrusted_ingestion import UntrustedContentIngestion
 
 
 class ControlCore:
@@ -27,6 +28,7 @@ class ControlCore:
         self.tool_registry = ToolRegistry()
         self.sandbox_policy = SandboxPolicy()
         self.tool_audit_log = ToolAuditLog()
+        self.untrusted_ingestion = UntrustedContentIngestion()
 
     def _build_event(
         self,
@@ -84,6 +86,20 @@ class ControlCore:
             task["sequence"] = index + 1
             task["status"] = "pending"
         return plan
+
+    def ingest_external_content(
+        self,
+        content: str,
+        source_type: str,
+        source_id: str,
+        trusted: bool = False,
+    ):
+        return self.untrusted_ingestion.ingest(
+            content=content,
+            source_type=source_type,
+            source_id=source_id,
+            trusted=trusted,
+        )
 
     def validate_tool_request(
         self,
