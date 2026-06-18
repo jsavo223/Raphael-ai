@@ -64,6 +64,35 @@ def client_without_configured_owner_key(tmp_path, monkeypatch):
         yield test_client
 
 
+def test_tool_audit_api_requires_owner_key(client):
+    response = client.get("/audit/tool-activity")
+
+    assert response.status_code == 401
+    assert "owner API key" in response.json()["detail"]
+
+
+def test_tool_audit_api_returns_ingestion_records(client):
+    ingestion_response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+    audit_response = client.get(
+        "/audit/tool-activity",
+        headers=OWNER_HEADERS,
+    )
+
+    assert ingestion_response.status_code == 200
+    assert audit_response.status_code == 200
+
+    records = audit_response.json()["records"]
+    assert len(records) == 1
+    assert records[0]["tool_name"] == "external_ingestion"
+    assert records[0]["allowed"] is True
+    assert records[0]["reason"] == "external_ingestion_allowed"
+    assert "content" not in records[0]["metadata"]
+
+
 def test_external_ingestion_api_fails_closed_without_configured_owner_key(
     client_without_configured_owner_key,
 ):
