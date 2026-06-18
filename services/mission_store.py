@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from schemas.mission import Mission
+from services.redaction import redact_data
 
 
 class MissionStore:
@@ -23,23 +24,26 @@ class MissionStore:
     def _save(self):
         with self.path.open("w", encoding="utf-8") as file:
             json.dump(
-                [mission.model_dump(mode="json") for mission in self.missions],
+                [redact_data(mission.model_dump(mode="json")) for mission in self.missions],
                 file,
                 indent=2,
             )
 
     def add(self, mission: Mission):
-        self.missions.append(mission)
+        redacted_mission = Mission(**redact_data(mission.model_dump(mode="json")))
+        self.missions.append(redacted_mission)
         self._save()
 
     def update(self, mission: Mission):
+        redacted_mission = Mission(**redact_data(mission.model_dump(mode="json")))
+
         for index, existing in enumerate(self.missions):
-            if existing.mission_id == mission.mission_id:
-                self.missions[index] = mission
+            if existing.mission_id == redacted_mission.mission_id:
+                self.missions[index] = redacted_mission
                 self._save()
                 return
 
-        self.add(mission)
+        self.add(redacted_mission)
 
     def get_all(self):
         return self.missions
