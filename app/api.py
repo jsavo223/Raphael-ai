@@ -47,6 +47,16 @@ def list_missions():
     }
 
 
+@app.get("/missions/{mission_id}/status")
+def get_mission_status(mission_id: str):
+    progress = control_core.get_mission_progress(mission_id)
+
+    if progress is None:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    return progress
+
+
 @app.get("/missions/{mission_id}")
 def get_mission(mission_id: str):
     mission = control_core.mission_store.get(mission_id)
