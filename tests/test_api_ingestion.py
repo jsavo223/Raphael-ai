@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from services.auth import OWNER_API_KEY_ENV, OWNER_API_KEY_HEADER
 from services.limits import MAX_EXTERNAL_CONTENT_LENGTH, MAX_EXTERNAL_SOURCE_FIELD_LENGTH
+from services.redaction import REDACTED_VALUE
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -158,6 +159,24 @@ def test_external_ingestion_api_accepts_safe_content(client):
     assert "release notes" in body["safe_content"]
     assert body["redacted"] is False
     assert body["trusted"] is False
+
+
+def test_external_ingestion_api_redacts_sensitive_source_metadata(client):
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": "web_page",
+            "source_id": "https://example.test/page?token=source-secret-value",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert REDACTED_VALUE in body["source_id"]
+    assert "source-secret-value" not in body["source_id"]
+    assert body["redacted"] is True
 
 
 def test_external_ingestion_api_blocks_hostile_prompt_injection(client):
