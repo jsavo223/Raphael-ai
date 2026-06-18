@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 
 from schemas.event import Event
+from services.redaction import redact_data
 
 
 class EventStore:
@@ -23,13 +24,14 @@ class EventStore:
     def _save(self):
         with self.path.open("w", encoding="utf-8") as file:
             json.dump(
-                [event.model_dump(mode="json") for event in self.events],
+                [redact_data(event.model_dump(mode="json")) for event in self.events],
                 file,
                 indent=2,
             )
 
     def append(self, event: Event):
-        self.events.append(event)
+        redacted_event = Event(**redact_data(event.model_dump(mode="json")))
+        self.events.append(redacted_event)
         self._save()
 
     def get_all(self):
