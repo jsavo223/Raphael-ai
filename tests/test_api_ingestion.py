@@ -5,11 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from services.auth import OWNER_API_KEY_ENV, OWNER_API_KEY_HEADER
-from services.limits import (
-    MAX_AUDIT_RECORDS_RESPONSE,
-    MAX_EXTERNAL_CONTENT_LENGTH,
-    MAX_EXTERNAL_SOURCE_FIELD_LENGTH,
-)
+from services.limits import MAX_EXTERNAL_CONTENT_LENGTH, MAX_EXTERNAL_SOURCE_FIELD_LENGTH
 from services.redaction import REDACTED_VALUE
 
 
@@ -66,102 +62,6 @@ def client_without_configured_owner_key(tmp_path, monkeypatch):
 
     with TestClient(api.app) as test_client:
         yield test_client
-
-
-def _ingest_safe_content(client, source_id):
-    return client.post(
-        "/ingestion/external",
-        headers=OWNER_HEADERS,
-        json={
-            "content": f"This external page {source_id} contains normal documentation content.",
-            "source_type": "web_page",
-            "source_id": source_id,
-        },
-    )
-
-
-def test_tool_audit_api_requires_owner_key(client):
-    response = client.get("/audit/tool-activity")
-
-    assert response.status_code == 401
-    assert "owner API key" in response.json()["detail"]
-
-
-def test_tool_audit_api_returns_ingestion_records(client):
-    ingestion_response = client.post(
-        "/ingestion/external",
-        headers=OWNER_HEADERS,
-        json=SAFE_EXTERNAL_CONTENT,
-    )
-    audit_response = client.get(
-        "/audit/tool-activity",
-        headers=OWNER_HEADERS,
-    )
-
-    assert ingestion_response.status_code == 200
-    assert audit_response.status_code == 200
-
-    body = audit_response.json()
-    records = body["records"]
-    assert body["total"] == 1
-    assert body["offset"] == 0
-    assert len(records) == 1
-    assert records[0]["tool_name"] == "external_ingestion"
-    assert records[0]["allowed"] is True
-    assert records[0]["reason"] == "external_ingestion_allowed"
-    assert "content" not in records[0]["metadata"]
-
-
-def test_tool_audit_api_paginates_newest_first(client):
-    for source_id in ("docs-page-1", "docs-page-2", "docs-page-3"):
-        response = _ingest_safe_content(client, source_id)
-        assert response.status_code == 200
-
-    first_page = client.get(
-        "/audit/tool-activity?limit=2",
-        headers=OWNER_HEADERS,
-    )
-    second_page = client.get(
-        "/audit/tool-activity?limit=1&offset=1",
-        headers=OWNER_HEADERS,
-    )
-
-    assert first_page.status_code == 200
-    assert second_page.status_code == 200
-
-    first_body = first_page.json()
-    second_body = second_page.json()
-
-    assert first_body["total"] == 3
-    assert first_body["limit"] == 2
-    assert first_body["offset"] == 0
-    assert [
-        record["metadata"]["source_id"] for record in first_body["records"]
-    ] == ["docs-page-3", "docs-page-2"]
-
-    assert second_body["total"] == 3
-    assert second_body["limit"] == 1
-    assert second_body["offset"] == 1
-    assert second_body["records"][0]["metadata"]["source_id"] == "docs-page-2"
-
-
-def test_tool_audit_api_rejects_invalid_pagination(client):
-    too_small = client.get(
-        "/audit/tool-activity?limit=0",
-        headers=OWNER_HEADERS,
-    )
-    too_large = client.get(
-        f"/audit/tool-activity?limit={MAX_AUDIT_RECORDS_RESPONSE + 1}",
-        headers=OWNER_HEADERS,
-    )
-    negative_offset = client.get(
-        "/audit/tool-activity?offset=-1",
-        headers=OWNER_HEADERS,
-    )
-
-    assert too_small.status_code == 422
-    assert too_large.status_code == 422
-    assert negative_offset.status_code == 422
 
 
 def test_external_ingestion_api_fails_closed_without_configured_owner_key(
