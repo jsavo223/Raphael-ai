@@ -16,4 +16,7 @@ class TrainingSuggestion(BaseModel):
     created_at: str
     approved_at: Optional[str] = None
     rejected_at: Optional[str] = None
+    test_required_at: Optional[str] = None
+    tested_at: Optional[str] = None
+    test_notes: Optional[str] = None
     applied_at: Optional[str] = None
