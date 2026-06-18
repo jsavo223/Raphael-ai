@@ -1,3 +1,5 @@
+import pytest
+
 from schemas.event import Event
 from schemas.mission import Mission
 from schemas.training import TrainingSuggestion
@@ -7,11 +9,20 @@ from services.tool_audit import ToolAuditLog
 from services.training_store import TrainingStore
 
 
-def test_mission_store_recovers_from_corrupt_json(tmp_path):
-    path = tmp_path / "missions.json"
+@pytest.mark.parametrize(
+    ("store_class", "filename"),
+    [
+        (MissionStore, "missions.json"),
+        (EventStore, "events.json"),
+        (TrainingStore, "training_suggestions.json"),
+        (ToolAuditLog, "tool_audit.json"),
+    ],
+)
+def test_store_recovers_from_corrupt_json(tmp_path, store_class, filename):
+    path = tmp_path / filename
     path.write_text("not valid json", encoding="utf-8")
 
-    store = MissionStore(str(path))
+    store = store_class(str(path))
 
     assert store.get_all() == []
     assert path.exists()
@@ -35,17 +46,6 @@ def test_mission_store_still_saves_after_recovery(tmp_path):
     reloaded = MissionStore(str(path))
     assert reloaded.get("mission_test") is not None
     assert reloaded.get("mission_test").goal == "Build a safe test mission"
-
-
-def test_event_store_recovers_from_corrupt_json(tmp_path):
-    path = tmp_path / "events.json"
-    path.write_text("not valid json", encoding="utf-8")
-
-    store = EventStore(str(path))
-
-    assert store.get_all() == []
-    assert path.exists()
-    assert path.with_suffix(".json.corrupt").exists()
 
 
 def test_event_store_still_saves_after_recovery(tmp_path):
@@ -73,17 +73,6 @@ def test_event_store_still_saves_after_recovery(tmp_path):
     assert events[0].event_type == "MISSION_CREATED"
 
 
-def test_training_store_recovers_from_corrupt_json(tmp_path):
-    path = tmp_path / "training_suggestions.json"
-    path.write_text("not valid json", encoding="utf-8")
-
-    store = TrainingStore(str(path))
-
-    assert store.get_all() == []
-    assert path.exists()
-    assert path.with_suffix(".json.corrupt").exists()
-
-
 def test_training_store_still_saves_after_recovery(tmp_path):
     path = tmp_path / "training_suggestions.json"
     path.write_text("not valid json", encoding="utf-8")
@@ -106,17 +95,6 @@ def test_training_store_still_saves_after_recovery(tmp_path):
     reloaded = TrainingStore(str(path))
     assert reloaded.get("suggestion_test") is not None
     assert reloaded.get("suggestion_test").title == "Improve safe recovery"
-
-
-def test_tool_audit_log_recovers_from_corrupt_json(tmp_path):
-    path = tmp_path / "tool_audit.json"
-    path.write_text("not valid json", encoding="utf-8")
-
-    audit_log = ToolAuditLog(str(path))
-
-    assert audit_log.get_all() == []
-    assert path.exists()
-    assert path.with_suffix(".json.corrupt").exists()
 
 
 def test_tool_audit_log_still_saves_after_recovery(tmp_path):
