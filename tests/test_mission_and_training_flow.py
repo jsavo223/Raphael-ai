@@ -9,6 +9,7 @@ from services.event_store import EventStore
 from services.mission_store import MissionStore
 from services.rate_limit import InMemoryRateLimiter
 from services.sandbox_policy import SandboxPolicy
+from services.tool_audit import ToolAuditLog
 from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
 
@@ -19,6 +20,7 @@ def build_test_control_core(tmp_path):
     control_core.mission_store = MissionStore(str(tmp_path / "missions.json"))
     control_core.training_store = TrainingStore(str(tmp_path / "training_suggestions.json"))
     control_core.training_agent = TrainingAgent(control_core.training_store)
+    control_core.tool_audit_log = ToolAuditLog(str(tmp_path / "tool_audit.json"))
     return control_core
 
 
@@ -206,3 +208,37 @@ def test_control_core_rejects_unknown_tools(tmp_path):
 
     with pytest.raises(PermissionDeniedError):
         control_core.validate_tool_request("unknown_tool", approved=True)
+
+
+def test_control_core_audits_denied_tool_requests(tmp_path):
+    control_core = build_test_control_core(tmp_path)
+
+    with pytest.raises(PermissionDeniedError):
+        control_core.validate_tool_request(
+            "terminal_command",
+            approved=True,
+            command="python --version",
+            mission_id="mission_test",
+            task_id="task_test",
+        )
+
+    records = control_core.tool_audit_log.get_all()
+    assert len(records) == 1
+    assert records[0]["tool_name"] == "terminal_command"
+    assert records[0]["allowed"] is False
+    assert records[0]["mission_id"] == "mission_test"
+    assert records[0]["task_id"] == "task_test"
+
+
+def test_tool_audit_redacts_sensitive_metadata(tmp_path):
+    audit = ToolAuditLog(str(tmp_path / "tool_audit.json"))
+
+    audit.record(
+        tool_name="web_search",
+        allowed=False,
+        reason="test",
+        metadata={"api_key": "super-secret-value"},
+    )
+
+    stored = ToolAuditLog(str(tmp_path / "tool_audit.json")).get_all()
+    assert stored[0]["metadata"]["api_key"] == "[REDACTED]"
