@@ -28,6 +28,10 @@ class TrainingSuggestionRequest(BaseModel):
     evidence: List[str] = []
 
 
+class TrainingDecisionRequest(BaseModel):
+    reason: Optional[str] = None
+
+
 @app.get("/")
 def health():
     return {
@@ -111,6 +115,42 @@ def create_training_suggestion(request: TrainingSuggestionRequest):
         source_mission_id=request.source_mission_id,
         evidence=request.evidence,
     )
+
+
+@app.get("/training/suggestions/{suggestion_id}")
+def get_training_suggestion(suggestion_id: str):
+    suggestion = control_core.get_training_suggestion(suggestion_id)
+
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="Training suggestion not found")
+
+    return suggestion
+
+
+@app.post("/training/suggestions/{suggestion_id}/approve")
+def approve_training_suggestion(suggestion_id: str, request: TrainingDecisionRequest):
+    suggestion = control_core.approve_training_suggestion(
+        suggestion_id=suggestion_id,
+        reason=request.reason,
+    )
+
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="Training suggestion not found")
+
+    return suggestion
+
+
+@app.post("/training/suggestions/{suggestion_id}/reject")
+def reject_training_suggestion(suggestion_id: str, request: TrainingDecisionRequest):
+    suggestion = control_core.reject_training_suggestion(
+        suggestion_id=suggestion_id,
+        reason=request.reason,
+    )
+
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="Training suggestion not found")
+
+    return suggestion
 
 
 @app.post("/training/analyze-mission/{mission_id}")
