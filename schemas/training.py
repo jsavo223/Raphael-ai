@@ -15,4 +15,5 @@ class TrainingSuggestion(BaseModel):
     status: str = "proposed"
     created_at: str
     approved_at: Optional[str] = None
+    rejected_at: Optional[str] = None
     applied_at: Optional[str] = None
