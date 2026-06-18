@@ -75,6 +75,61 @@ class ControlCore:
             task["status"] = "pending"
         return plan
 
+    def get_mission_progress(self, mission_id: str):
+        mission = self.mission_store.get(mission_id)
+
+        if mission is None:
+            return None
+
+        events = self.event_store.get_by_mission(mission_id)
+        planned_events = [event for event in events if event.event_type == "MISSION_PLANNED"]
+        latest_plan = planned_events[-1].payload.get("plan", []) if planned_events else []
+
+        task_count = len(latest_plan)
+        completed_task_ids = {
+            event.task_id for event in events if event.event_type == "TASK_COMPLETED"
+        }
+        failed_task_ids = {
+            event.task_id for event in events if event.event_type == "TASK_FAILED"
+        }
+        started_task_ids = {
+            event.task_id for event in events if event.event_type == "TASK_STARTED"
+        }
+
+        finished_task_ids = completed_task_ids.union(failed_task_ids)
+        running_task_ids = started_task_ids.difference(finished_task_ids)
+
+        current_task = None
+        for event in reversed(events):
+            if event.event_type == "TASK_STARTED" and event.task_id in running_task_ids:
+                current_task = {
+                    "task_id": event.task_id,
+                    "title": event.payload.get("title"),
+                    "worker_type": event.payload.get("worker_type"),
+                }
+                break
+
+        finished_count = len(finished_task_ids)
+        progress_percentage = 100 if task_count == 0 and mission.status == "completed" else 0
+        if task_count > 0:
+            progress_percentage = round((finished_count / task_count) * 100, 2)
+
+        last_event = events[-1] if events else None
+
+        return {
+            "mission_id": mission.mission_id,
+            "goal": mission.goal,
+            "status": mission.status,
+            "task_count": task_count,
+            "completed_task_count": len(completed_task_ids),
+            "failed_task_count": len(failed_task_ids),
+            "running_task_count": len(running_task_ids),
+            "progress_percentage": progress_percentage,
+            "current_task": current_task,
+            "last_event_type": last_event.event_type if last_event else None,
+            "last_updated_at": mission.updated_at,
+        }
+
     def create_mission(self, goal: str):
         mission_id = new_id("mission")
         correlation_id = new_id("corr")
