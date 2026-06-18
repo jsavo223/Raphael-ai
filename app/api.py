@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
 from core.errors import PermissionDeniedError
@@ -8,6 +8,8 @@ from services.auth import require_owner_api_key
 from services.chat_service import ChatService
 from services.control_core import ControlCore
 from services.limits import (
+    DEFAULT_AUDIT_RECORDS_RESPONSE,
+    MAX_AUDIT_RECORDS_RESPONSE,
     MAX_CHAT_MESSAGE_LENGTH,
     MAX_EVIDENCE_ITEM_LENGTH,
     MAX_EVIDENCE_ITEMS,
@@ -129,11 +131,23 @@ def ingest_external_content(
 
 @app.get("/audit/tool-activity")
 def list_tool_audit_activity(
+    limit: int = Query(
+        DEFAULT_AUDIT_RECORDS_RESPONSE,
+        ge=1,
+        le=MAX_AUDIT_RECORDS_RESPONSE,
+    ),
+    offset: int = Query(0, ge=0),
     _rate_limit: bool = Depends(require_rate_limit),
     _owner: bool = Depends(require_owner_api_key),
 ):
+    all_records = list(reversed(control_core.tool_audit_log.get_all()))
+    records = all_records[offset: offset + limit]
+
     return {
-        "records": control_core.tool_audit_log.get_all()
+        "records": records,
+        "total": len(all_records),
+        "limit": limit,
+        "offset": offset,
     }
 
 
