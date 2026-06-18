@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from schemas.training import TrainingSuggestion
+from services.redaction import redact_data
 
 
 class TrainingStore:
@@ -23,15 +24,18 @@ class TrainingStore:
     def _save(self):
         with self.path.open("w", encoding="utf-8") as file:
             json.dump(
-                [suggestion.model_dump(mode="json") for suggestion in self.suggestions],
+                [redact_data(suggestion.model_dump(mode="json")) for suggestion in self.suggestions],
                 file,
                 indent=2,
             )
 
     def add(self, suggestion: TrainingSuggestion):
-        self.suggestions.append(suggestion)
+        redacted_suggestion = TrainingSuggestion(
+            **redact_data(suggestion.model_dump(mode="json"))
+        )
+        self.suggestions.append(redacted_suggestion)
         self._save()
-        return suggestion
+        return redacted_suggestion
 
     def get_all(self):
         return self.suggestions
@@ -43,10 +47,14 @@ class TrainingStore:
         return None
 
     def update(self, suggestion: TrainingSuggestion):
-        for index, existing in enumerate(self.suggestions):
-            if existing.suggestion_id == suggestion.suggestion_id:
-                self.suggestions[index] = suggestion
-                self._save()
-                return suggestion
+        redacted_suggestion = TrainingSuggestion(
+            **redact_data(suggestion.model_dump(mode="json"))
+        )
 
-        return self.add(suggestion)
+        for index, existing in enumerate(self.suggestions):
+            if existing.suggestion_id == redacted_suggestion.suggestion_id:
+                self.suggestions[index] = redacted_suggestion
+                self._save()
+                return redacted_suggestion
+
+        return self.add(redacted_suggestion)
