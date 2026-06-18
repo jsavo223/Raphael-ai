@@ -32,6 +32,34 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
+@pytest.fixture()
+def client_without_configured_owner_key(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(REPO_ROOT))
+    monkeypatch.delenv(OWNER_API_KEY_ENV, raising=False)
+
+    import app.api as api
+
+    api = importlib.reload(api)
+    api.rate_limiter.requests.clear()
+
+    with TestClient(api.app) as test_client:
+        yield test_client
+
+
+def test_external_ingestion_api_fails_closed_without_configured_owner_key(
+    client_without_configured_owner_key,
+):
+    response = client_without_configured_owner_key.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+
+    assert response.status_code == 503
+    assert "Owner API key is not configured" in response.json()["detail"]
+
+
 def test_external_ingestion_api_requires_owner_key(client):
     response = client.post(
         "/ingestion/external",
