@@ -13,11 +13,18 @@ Some commits made by connected tools may not automatically start GitHub Actions 
 3. Select **Raphael Tests**.
 4. Choose **Run workflow**.
 5. Run it on the `main` branch.
+6. Leave `pytest_target` as `tests` to run everything, or set it to one file for a focused check.
 
-The workflow installs dependencies and runs:
+The workflow installs dependencies and runs the selected pytest target. By default, it runs:
 
 ```bash
-python -m pytest
+python -m pytest tests
+```
+
+For the external ingestion API check, set `pytest_target` to:
+
+```text
+tests/test_api_ingestion.py
 ```
 
 ## Run tests locally later
@@ -26,7 +33,13 @@ From the project folder:
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pytest
+python -m pytest tests
+```
+
+To verify only the external ingestion API tests:
+
+```bash
+python -m pytest tests/test_api_ingestion.py
 ```
 
 ## Rule before adding more agents
