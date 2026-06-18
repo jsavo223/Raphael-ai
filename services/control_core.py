@@ -11,6 +11,8 @@ from services.event_store import EventStore
 from services.executor import Executor
 from services.mission_store import MissionStore
 from services.plan_engine import create_simple_plan
+from services.sandbox_policy import SandboxPolicy
+from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
 
 
@@ -21,6 +23,8 @@ class ControlCore:
         self.mission_store = MissionStore()
         self.training_store = TrainingStore()
         self.training_agent = TrainingAgent(self.training_store)
+        self.tool_registry = ToolRegistry()
+        self.sandbox_policy = SandboxPolicy()
 
     def _build_event(
         self,
@@ -78,6 +82,27 @@ class ControlCore:
             task["sequence"] = index + 1
             task["status"] = "pending"
         return plan
+
+    def validate_tool_request(
+        self,
+        tool_name: str,
+        approved: bool = False,
+        command: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ):
+        permission = self.tool_registry.require_allowed(tool_name, approved=approved)
+
+        if tool_name == "terminal_command":
+            if command is None:
+                raise ValueError("terminal_command requires a command value.")
+            self.sandbox_policy.validate_command(command, approved=approved)
+
+        if tool_name in ("file_read", "file_write"):
+            if file_path is None:
+                raise ValueError(f"{tool_name} requires a file_path value.")
+            self.sandbox_policy.validate_file_path(file_path, approved=approved)
+
+        return permission
 
     def get_mission_progress(self, mission_id: str):
         mission = self.mission_store.get(mission_id)
