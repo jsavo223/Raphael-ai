@@ -1,8 +1,9 @@
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from services.auth import require_owner_api_key
 from services.control_core import ControlCore
 
 
@@ -42,7 +43,7 @@ def health():
 
 
 @app.get("/health")
-def detailed_health():
+def detailed_health(_owner: bool = Depends(require_owner_api_key)):
     return {
         "status": "healthy",
         "mission_store": "connected",
@@ -53,19 +54,25 @@ def detailed_health():
 
 
 @app.post("/missions")
-def create_mission(request: MissionRequest):
+def create_mission(
+    request: MissionRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
     return control_core.create_mission(request.goal)
 
 
 @app.get("/missions")
-def list_missions():
+def list_missions(_owner: bool = Depends(require_owner_api_key)):
     return {
         "missions": control_core.mission_store.get_all()
     }
 
 
 @app.get("/missions/{mission_id}/status")
-def get_mission_status(mission_id: str):
+def get_mission_status(
+    mission_id: str,
+    _owner: bool = Depends(require_owner_api_key),
+):
     progress = control_core.get_mission_progress(mission_id)
 
     if progress is None:
@@ -75,7 +82,10 @@ def get_mission_status(mission_id: str):
 
 
 @app.get("/missions/{mission_id}")
-def get_mission(mission_id: str):
+def get_mission(
+    mission_id: str,
+    _owner: bool = Depends(require_owner_api_key),
+):
     mission = control_core.mission_store.get(mission_id)
 
     if mission is None:
@@ -85,7 +95,10 @@ def get_mission(mission_id: str):
 
 
 @app.get("/missions/{mission_id}/events")
-def get_mission_events(mission_id: str):
+def get_mission_events(
+    mission_id: str,
+    _owner: bool = Depends(require_owner_api_key),
+):
     mission = control_core.mission_store.get(mission_id)
 
     if mission is None:
@@ -98,14 +111,17 @@ def get_mission_events(mission_id: str):
 
 
 @app.get("/training/suggestions")
-def list_training_suggestions():
+def list_training_suggestions(_owner: bool = Depends(require_owner_api_key)):
     return {
         "suggestions": control_core.training_store.get_all()
     }
 
 
 @app.post("/training/suggestions")
-def create_training_suggestion(request: TrainingSuggestionRequest):
+def create_training_suggestion(
+    request: TrainingSuggestionRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
     return control_core.create_training_suggestion(
         title=request.title,
         description=request.description,
@@ -118,7 +134,10 @@ def create_training_suggestion(request: TrainingSuggestionRequest):
 
 
 @app.get("/training/suggestions/{suggestion_id}")
-def get_training_suggestion(suggestion_id: str):
+def get_training_suggestion(
+    suggestion_id: str,
+    _owner: bool = Depends(require_owner_api_key),
+):
     suggestion = control_core.get_training_suggestion(suggestion_id)
 
     if suggestion is None:
@@ -128,7 +147,11 @@ def get_training_suggestion(suggestion_id: str):
 
 
 @app.post("/training/suggestions/{suggestion_id}/approve")
-def approve_training_suggestion(suggestion_id: str, request: TrainingDecisionRequest):
+def approve_training_suggestion(
+    suggestion_id: str,
+    request: TrainingDecisionRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
     suggestion = control_core.approve_training_suggestion(
         suggestion_id=suggestion_id,
         reason=request.reason,
@@ -141,7 +164,11 @@ def approve_training_suggestion(suggestion_id: str, request: TrainingDecisionReq
 
 
 @app.post("/training/suggestions/{suggestion_id}/reject")
-def reject_training_suggestion(suggestion_id: str, request: TrainingDecisionRequest):
+def reject_training_suggestion(
+    suggestion_id: str,
+    request: TrainingDecisionRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
     suggestion = control_core.reject_training_suggestion(
         suggestion_id=suggestion_id,
         reason=request.reason,
@@ -154,7 +181,10 @@ def reject_training_suggestion(suggestion_id: str, request: TrainingDecisionRequ
 
 
 @app.post("/training/analyze-mission/{mission_id}")
-def analyze_mission_for_training(mission_id: str):
+def analyze_mission_for_training(
+    mission_id: str,
+    _owner: bool = Depends(require_owner_api_key),
+):
     suggestions = control_core.analyze_mission_for_training(mission_id)
 
     if suggestions is None:
