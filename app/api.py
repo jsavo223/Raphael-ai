@@ -102,12 +102,18 @@ def ingest_external_content(
     _rate_limit: bool = Depends(require_rate_limit),
     _owner: bool = Depends(require_owner_api_key),
 ):
+    if request.trusted:
+        raise HTTPException(
+            status_code=403,
+            detail="External ingestion endpoint cannot mark content as trusted.",
+        )
+
     try:
         ingested = control_core.ingest_external_content(
             content=request.content,
             source_type=request.source_type,
             source_id=request.source_id,
-            trusted=request.trusted,
+            trusted=False,
         )
     except PermissionDeniedError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
