@@ -1,10 +1,9 @@
-import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.ids import new_id
 from core.time import utc_now
 from services.redaction import redact_data
+from services.safe_json import SafeJsonStore
 
 
 class ToolAuditLog:
@@ -16,20 +15,14 @@ class ToolAuditLog:
     """
 
     def __init__(self, path: str = "data/tool_audit.json"):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.json_store = SafeJsonStore(path, default_value=[])
         self.records: List[Dict[str, Any]] = self._load()
 
     def _load(self) -> List[Dict[str, Any]]:
-        if not self.path.exists():
-            return []
-
-        with self.path.open("r", encoding="utf-8") as file:
-            return json.load(file)
+        return self.json_store.load()
 
     def _save(self):
-        with self.path.open("w", encoding="utf-8") as file:
-            json.dump([redact_data(record) for record in self.records], file, indent=2)
+        self.json_store.save([redact_data(record) for record in self.records])
 
     def record(
         self,
