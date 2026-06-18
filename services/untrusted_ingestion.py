@@ -20,7 +20,7 @@ class UntrustedContentIngestion:
     Central gate for future external content ingestion.
 
     Web pages, files, browser text, emails, and documents should pass through
-    this service before they can influence plans, workers, training, or tools.
+    this service before they can influence Raphael's plans or tool calls.
     """
 
     def __init__(self, guard: Optional[PromptInjectionGuard] = None):
@@ -37,14 +37,22 @@ class UntrustedContentIngestion:
             raise PermissionDeniedError("Empty external content cannot be ingested.")
 
         safe_content = redact_text(content)
-        redacted = safe_content != content
+        safe_source_type = redact_text(source_type)
+        safe_source_id = redact_text(source_id)
+        redacted = any(
+            (
+                safe_content != content,
+                safe_source_type != source_type,
+                safe_source_id != source_id,
+            )
+        )
 
         if not trusted:
-            self.guard.validate_untrusted_content(safe_content, source=source_type)
+            self.guard.validate_untrusted_content(safe_content, source=safe_source_type)
 
         return IngestedContent(
-            source_type=source_type,
-            source_id=source_id,
+            source_type=safe_source_type,
+            source_id=safe_source_id,
             safe_content=safe_content,
             redacted=redacted,
             trusted=trusted,
