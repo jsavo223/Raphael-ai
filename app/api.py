@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -16,6 +18,16 @@ class MissionRequest(BaseModel):
     goal: str
 
 
+class TrainingSuggestionRequest(BaseModel):
+    title: str
+    description: str
+    target_agent: str = "general_agent"
+    category: str = "capability_improvement"
+    priority: str = "medium"
+    source_mission_id: Optional[str] = None
+    evidence: List[str] = []
+
+
 @app.get("/")
 def health():
     return {
@@ -31,7 +43,8 @@ def detailed_health():
         "status": "healthy",
         "mission_store": "connected",
         "event_store": "connected",
-        "worker_pool": "connected"
+        "worker_pool": "connected",
+        "training_agent": "connected"
     }
 
 
@@ -77,4 +90,37 @@ def get_mission_events(mission_id: str):
     return {
         "mission_id": mission_id,
         "events": control_core.event_store.get_by_mission(mission_id)
+    }
+
+
+@app.get("/training/suggestions")
+def list_training_suggestions():
+    return {
+        "suggestions": control_core.training_store.get_all()
+    }
+
+
+@app.post("/training/suggestions")
+def create_training_suggestion(request: TrainingSuggestionRequest):
+    return control_core.create_training_suggestion(
+        title=request.title,
+        description=request.description,
+        target_agent=request.target_agent,
+        category=request.category,
+        priority=request.priority,
+        source_mission_id=request.source_mission_id,
+        evidence=request.evidence,
+    )
+
+
+@app.post("/training/analyze-mission/{mission_id}")
+def analyze_mission_for_training(mission_id: str):
+    suggestions = control_core.analyze_mission_for_training(mission_id)
+
+    if suggestions is None:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    return {
+        "mission_id": mission_id,
+        "suggestions": suggestions
     }
