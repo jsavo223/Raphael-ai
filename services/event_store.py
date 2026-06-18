@@ -1,33 +1,23 @@
-import json
-from pathlib import Path
 from typing import List
 
 from schemas.event import Event
 from services.redaction import redact_data
+from services.safe_json import SafeJsonStore
 
 
 class EventStore:
     def __init__(self, path: str = "data/events.json"):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.json_store = SafeJsonStore(path, default_value=[])
         self.events: List[Event] = self._load()
 
     def _load(self) -> List[Event]:
-        if not self.path.exists():
-            return []
-
-        with self.path.open("r", encoding="utf-8") as file:
-            raw_events = json.load(file)
-
+        raw_events = self.json_store.load()
         return [Event(**event) for event in raw_events]
 
     def _save(self):
-        with self.path.open("w", encoding="utf-8") as file:
-            json.dump(
-                [redact_data(event.model_dump(mode="json")) for event in self.events],
-                file,
-                indent=2,
-            )
+        self.json_store.save(
+            [redact_data(event.model_dump(mode="json")) for event in self.events]
+        )
 
     def append(self, event: Event):
         redacted_event = Event(**redact_data(event.model_dump(mode="json")))
