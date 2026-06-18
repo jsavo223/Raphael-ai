@@ -181,3 +181,28 @@ def test_sandbox_policy_blocks_dangerous_commands_and_outside_files(tmp_path):
 
     with pytest.raises(PermissionDeniedError):
         policy.validate_file_path(str(tmp_path / "outside.txt"), approved=True)
+
+
+def test_control_core_denies_tool_requests_by_default(tmp_path):
+    control_core = build_test_control_core(tmp_path)
+
+    with pytest.raises(PermissionDeniedError):
+        control_core.validate_tool_request(
+            "terminal_command",
+            approved=True,
+            command="python --version",
+        )
+
+    with pytest.raises(PermissionDeniedError):
+        control_core.validate_tool_request(
+            "file_read",
+            approved=True,
+            file_path=str(tmp_path / "workspace" / "notes.txt"),
+        )
+
+
+def test_control_core_rejects_unknown_tools(tmp_path):
+    control_core = build_test_control_core(tmp_path)
+
+    with pytest.raises(PermissionDeniedError):
+        control_core.validate_tool_request("unknown_tool", approved=True)
