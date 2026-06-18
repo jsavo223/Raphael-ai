@@ -49,6 +49,10 @@ class TrainingDecisionRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=MAX_TRAINING_REASON_LENGTH)
 
 
+class TrainingTestRequest(BaseModel):
+    test_notes: Optional[str] = Field(default=None, max_length=MAX_TRAINING_DESCRIPTION_LENGTH)
+
+
 @app.get("/")
 def health():
     return {
@@ -192,6 +196,46 @@ def reject_training_suggestion(
 
     if suggestion is None:
         raise HTTPException(status_code=404, detail="Training suggestion not found")
+
+    return suggestion
+
+
+@app.post("/training/suggestions/{suggestion_id}/mark-tested")
+def mark_training_suggestion_tested(
+    suggestion_id: str,
+    request: TrainingTestRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
+    suggestion = control_core.mark_training_suggestion_tested(
+        suggestion_id=suggestion_id,
+        test_notes=request.test_notes,
+    )
+
+    if suggestion is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Training suggestion not found or not ready for testing",
+        )
+
+    return suggestion
+
+
+@app.post("/training/suggestions/{suggestion_id}/apply")
+def apply_training_suggestion(
+    suggestion_id: str,
+    request: TrainingDecisionRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
+    suggestion = control_core.apply_training_suggestion(
+        suggestion_id=suggestion_id,
+        reason=request.reason,
+    )
+
+    if suggestion is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Training suggestion not found or not tested",
+        )
 
     return suggestion
 
