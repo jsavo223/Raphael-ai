@@ -163,6 +163,38 @@ class ControlCore:
             evidence=evidence or [],
         )
 
+    def get_training_suggestion(self, suggestion_id: str):
+        return self.training_store.get(suggestion_id)
+
+    def approve_training_suggestion(self, suggestion_id: str, reason: Optional[str] = None):
+        suggestion = self.training_store.get(suggestion_id)
+
+        if suggestion is None:
+            return None
+
+        suggestion.status = "approved"
+        suggestion.approved_at = utc_now().isoformat()
+        suggestion.rejected_at = None
+
+        if reason:
+            suggestion.evidence.append(f"approval_reason={reason}")
+
+        return self.training_store.update(suggestion)
+
+    def reject_training_suggestion(self, suggestion_id: str, reason: Optional[str] = None):
+        suggestion = self.training_store.get(suggestion_id)
+
+        if suggestion is None:
+            return None
+
+        suggestion.status = "rejected"
+        suggestion.rejected_at = utc_now().isoformat()
+
+        if reason:
+            suggestion.evidence.append(f"rejection_reason={reason}")
+
+        return self.training_store.update(suggestion)
+
     def create_mission(self, goal: str):
         mission_id = new_id("mission")
         correlation_id = new_id("corr")
