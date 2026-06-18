@@ -2,11 +2,13 @@ import pytest
 from fastapi import HTTPException
 
 from agents.training_agent import TrainingAgent
+from core.errors import PermissionDeniedError
 from services.chat_service import ChatService
 from services.control_core import ControlCore
 from services.event_store import EventStore
 from services.mission_store import MissionStore
 from services.rate_limit import InMemoryRateLimiter
+from services.tool_registry import ToolRegistry
 from services.training_store import TrainingStore
 
 
@@ -122,3 +124,26 @@ def test_rate_limiter_blocks_excess_requests():
         limiter.check("test-client")
 
     assert error.value.status_code == 429
+
+
+def test_tool_registry_denies_risky_tools_by_default():
+    registry = ToolRegistry()
+
+    risky_tool_names = [
+        "web_search",
+        "file_read",
+        "file_write",
+        "terminal_command",
+        "email_send",
+        "calendar_write",
+        "deploy_app",
+    ]
+
+    for tool_name in risky_tool_names:
+        permission = registry.get(tool_name)
+        assert permission is not None
+        assert permission.enabled is False
+        assert permission.approval_required is True
+
+        with pytest.raises(PermissionDeniedError):
+            registry.require_allowed(tool_name, approved=True)
