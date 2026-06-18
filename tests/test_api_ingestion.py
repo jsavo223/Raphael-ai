@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from services.auth import OWNER_API_KEY_ENV, OWNER_API_KEY_HEADER
+from services.limits import MAX_EXTERNAL_CONTENT_LENGTH, MAX_EXTERNAL_SOURCE_FIELD_LENGTH
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,21 @@ def client(tmp_path, monkeypatch):
 
     api = importlib.reload(api)
     api.rate_limiter.requests.clear()
+
+    with TestClient(api.app) as test_client:
+        yield test_client
+
+
+@pytest.fixture()
+def rate_limited_client(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(REPO_ROOT))
+    monkeypatch.setenv(OWNER_API_KEY_ENV, OWNER_API_KEY)
+
+    import app.api as api
+
+    api = importlib.reload(api)
+    api.rate_limiter = api.InMemoryRateLimiter(max_requests=1, window_seconds=60)
 
     with TestClient(api.app) as test_client:
         yield test_client
@@ -79,6 +95,53 @@ def test_external_ingestion_api_rejects_invalid_owner_key(client):
 
     assert response.status_code == 401
     assert "owner API key" in response.json()["detail"]
+
+
+def test_external_ingestion_api_enforces_rate_limit(rate_limited_client):
+    first_response = rate_limited_client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+    second_response = rate_limited_client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert "Too many requests" in second_response.json()["detail"]
+
+
+def test_external_ingestion_api_rejects_oversized_content(client):
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "x" * (MAX_EXTERNAL_CONTENT_LENGTH + 1),
+            "source_type": "web_page",
+            "source_id": "oversized-page-1",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_external_ingestion_api_rejects_oversized_source_fields(client):
+    oversized_source = "x" * (MAX_EXTERNAL_SOURCE_FIELD_LENGTH + 1)
+
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": oversized_source,
+            "source_id": oversized_source,
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_external_ingestion_api_accepts_safe_content(client):
