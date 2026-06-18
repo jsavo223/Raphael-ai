@@ -137,10 +137,23 @@ def list_tool_audit_activity(
         le=MAX_AUDIT_RECORDS_RESPONSE,
     ),
     offset: int = Query(0, ge=0),
+    tool_name: Optional[str] = Query(default=None, min_length=1, max_length=100),
+    allowed: Optional[bool] = Query(default=None),
     _rate_limit: bool = Depends(require_rate_limit),
     _owner: bool = Depends(require_owner_api_key),
 ):
     all_records = list(reversed(control_core.tool_audit_log.get_all()))
+
+    if tool_name is not None:
+        all_records = [
+            record for record in all_records if record.get("tool_name") == tool_name
+        ]
+
+    if allowed is not None:
+        all_records = [
+            record for record in all_records if record.get("allowed") is allowed
+        ]
+
     records = all_records[offset: offset + limit]
 
     return {
@@ -148,6 +161,8 @@ def list_tool_audit_activity(
         "total": len(all_records),
         "limit": limit,
         "offset": offset,
+        "tool_name": tool_name,
+        "allowed": allowed,
     }
 
 
