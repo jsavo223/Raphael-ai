@@ -1,8 +1,12 @@
+import pytest
+from fastapi import HTTPException
+
 from agents.training_agent import TrainingAgent
 from services.chat_service import ChatService
 from services.control_core import ControlCore
 from services.event_store import EventStore
 from services.mission_store import MissionStore
+from services.rate_limit import InMemoryRateLimiter
 from services.training_store import TrainingStore
 
 
@@ -106,3 +110,15 @@ def test_chat_service_returns_simple_user_facing_response(tmp_path):
     assert response["next_action"] == "review_result"
     assert "reply" in response
     assert "completed" in response["reply"]
+
+
+def test_rate_limiter_blocks_excess_requests():
+    limiter = InMemoryRateLimiter(max_requests=2, window_seconds=60)
+
+    limiter.check("test-client")
+    limiter.check("test-client")
+
+    with pytest.raises(HTTPException) as error:
+        limiter.check("test-client")
+
+    assert error.value.status_code == 429
