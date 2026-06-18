@@ -10,6 +10,11 @@ from services.auth import OWNER_API_KEY_ENV, OWNER_API_KEY_HEADER
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OWNER_API_KEY = "test-owner-key"
 OWNER_HEADERS = {OWNER_API_KEY_HEADER: OWNER_API_KEY}
+SAFE_EXTERNAL_CONTENT = {
+    "content": "This external page contains release notes and setup guidance for Raphael AI.",
+    "source_type": "web_page",
+    "source_id": "docs-page-1",
+}
 
 
 @pytest.fixture()
@@ -27,15 +32,32 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
+def test_external_ingestion_api_requires_owner_key(client):
+    response = client.post(
+        "/ingestion/external",
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+
+    assert response.status_code == 401
+    assert "owner API key" in response.json()["detail"]
+
+
+def test_external_ingestion_api_rejects_invalid_owner_key(client):
+    response = client.post(
+        "/ingestion/external",
+        headers={OWNER_API_KEY_HEADER: "wrong-key"},
+        json=SAFE_EXTERNAL_CONTENT,
+    )
+
+    assert response.status_code == 401
+    assert "owner API key" in response.json()["detail"]
+
+
 def test_external_ingestion_api_accepts_safe_content(client):
     response = client.post(
         "/ingestion/external",
         headers=OWNER_HEADERS,
-        json={
-            "content": "This external page contains release notes and setup guidance for Raphael AI.",
-            "source_type": "web_page",
-            "source_id": "docs-page-1",
-        },
+        json=SAFE_EXTERNAL_CONTENT,
     )
 
     assert response.status_code == 200
