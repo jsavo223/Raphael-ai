@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TrainingSuggestion(BaseModel):
@@ -11,7 +11,7 @@ class TrainingSuggestion(BaseModel):
     priority: str
     title: str
     description: str
-    evidence: List[str] = []
+    evidence: List[str] = Field(default_factory=list)
     status: str = "proposed"
     created_at: str
     approved_at: Optional[str] = None
