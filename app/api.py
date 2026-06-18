@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from services.auth import require_owner_api_key
 from services.chat_service import ChatService
@@ -51,7 +51,8 @@ class TrainingSuggestionRequest(BaseModel):
     source_mission_id: Optional[str] = Field(default=None, max_length=MAX_TRAINING_FIELD_LENGTH)
     evidence: List[str] = Field(default_factory=list, max_length=MAX_EVIDENCE_ITEMS)
 
-    @validator("evidence")
+    @field_validator("evidence")
+    @classmethod
     def validate_evidence_items(cls, evidence):
         for item in evidence:
             if len(item) > MAX_EVIDENCE_ITEM_LENGTH:
