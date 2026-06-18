@@ -1,7 +1,9 @@
 from schemas.event import Event
 from schemas.mission import Mission
+from schemas.training import TrainingSuggestion
 from services.event_store import EventStore
 from services.mission_store import MissionStore
+from services.training_store import TrainingStore
 
 
 def test_mission_store_recovers_from_corrupt_json(tmp_path):
@@ -68,3 +70,38 @@ def test_event_store_still_saves_after_recovery(tmp_path):
     events = reloaded.get_by_mission("mission_test")
     assert len(events) == 1
     assert events[0].event_type == "MISSION_CREATED"
+
+
+def test_training_store_recovers_from_corrupt_json(tmp_path):
+    path = tmp_path / "training_suggestions.json"
+    path.write_text("not valid json", encoding="utf-8")
+
+    store = TrainingStore(str(path))
+
+    assert store.get_all() == []
+    assert path.exists()
+    assert path.with_suffix(".json.corrupt").exists()
+
+
+def test_training_store_still_saves_after_recovery(tmp_path):
+    path = tmp_path / "training_suggestions.json"
+    path.write_text("not valid json", encoding="utf-8")
+
+    store = TrainingStore(str(path))
+    suggestion = TrainingSuggestion(
+        suggestion_id="suggestion_test",
+        source_mission_id="mission_test",
+        target_agent="general_agent",
+        category="capability_improvement",
+        priority="medium",
+        title="Improve safe recovery",
+        description="Make storage safer after corrupt files.",
+        evidence=["corrupt file recovery test"],
+        created_at="2026-01-01T00:00:00Z",
+    )
+
+    store.add(suggestion)
+
+    reloaded = TrainingStore(str(path))
+    assert reloaded.get("suggestion_test") is not None
+    assert reloaded.get("suggestion_test").title == "Improve safe recovery"
