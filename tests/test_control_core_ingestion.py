@@ -31,3 +31,15 @@ def test_control_core_blocks_hostile_external_content(tmp_path, monkeypatch):
             source_type="web_page",
             source_id="page_2",
         )
+
+
+def test_control_core_blocks_empty_external_content(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    core = ControlCore()
+
+    with pytest.raises(PermissionDeniedError):
+        core.ingest_external_content(
+            content="   ",
+            source_type="web_page",
+            source_id="page_3",
+        )
