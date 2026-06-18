@@ -1,10 +1,19 @@
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.auth import require_owner_api_key
 from services.control_core import ControlCore
+from services.limits import (
+    MAX_EVIDENCE_ITEM_LENGTH,
+    MAX_EVIDENCE_ITEMS,
+    MAX_MISSION_GOAL_LENGTH,
+    MAX_TRAINING_DESCRIPTION_LENGTH,
+    MAX_TRAINING_FIELD_LENGTH,
+    MAX_TRAINING_REASON_LENGTH,
+    MAX_TRAINING_TITLE_LENGTH,
+)
 
 
 app = FastAPI(
@@ -16,21 +25,27 @@ control_core = ControlCore()
 
 
 class MissionRequest(BaseModel):
-    goal: str
+    goal: str = Field(..., min_length=1, max_length=MAX_MISSION_GOAL_LENGTH)
 
 
 class TrainingSuggestionRequest(BaseModel):
-    title: str
-    description: str
-    target_agent: str = "general_agent"
-    category: str = "capability_improvement"
-    priority: str = "medium"
-    source_mission_id: Optional[str] = None
-    evidence: List[str] = []
+    title: str = Field(..., min_length=1, max_length=MAX_TRAINING_TITLE_LENGTH)
+    description: str = Field(..., min_length=1, max_length=MAX_TRAINING_DESCRIPTION_LENGTH)
+    target_agent: str = Field("general_agent", max_length=MAX_TRAINING_FIELD_LENGTH)
+    category: str = Field("capability_improvement", max_length=MAX_TRAINING_FIELD_LENGTH)
+    priority: str = Field("medium", max_length=MAX_TRAINING_FIELD_LENGTH)
+    source_mission_id: Optional[str] = Field(default=None, max_length=MAX_TRAINING_FIELD_LENGTH)
+    evidence: List[str] = Field(default_factory=list, max_length=MAX_EVIDENCE_ITEMS)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        for item in self.evidence:
+            if len(item) > MAX_EVIDENCE_ITEM_LENGTH:
+                raise ValueError("Evidence item is too long.")
 
 
 class TrainingDecisionRequest(BaseModel):
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=MAX_TRAINING_REASON_LENGTH)
 
 
 @app.get("/")
