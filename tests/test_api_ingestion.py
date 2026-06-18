@@ -86,6 +86,21 @@ def test_external_ingestion_api_blocks_hostile_prompt_injection(client):
     assert "prompt injection" in response.json()["detail"]
 
 
+def test_external_ingestion_api_blocks_blank_content(client):
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "   ",
+            "source_type": "web_page",
+            "source_id": "blank-page-1",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "Empty external content" in response.json()["detail"]
+
+
 def test_external_ingestion_api_rejects_trusted_override(client):
     response = client.post(
         "/ingestion/external",
