@@ -3,6 +3,7 @@ import pytest
 from core.errors import PermissionDeniedError
 from services.control_core import ControlCore
 from services.redaction import REDACTED_VALUE
+from services.untrusted_ingestion import ALLOWED_EXTERNAL_SOURCE_TYPES
 
 
 def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
@@ -19,6 +20,56 @@ def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
     assert ingested.source_id == "page_1"
     assert ingested.trusted is False
     assert "summarize project requirements" in ingested.safe_content
+
+
+@pytest.mark.parametrize("source_type", sorted(ALLOWED_EXTERNAL_SOURCE_TYPES))
+def test_control_core_allows_known_external_source_types(
+    tmp_path,
+    monkeypatch,
+    source_type,
+):
+    monkeypatch.chdir(tmp_path)
+    core = ControlCore()
+
+    ingested = core.ingest_external_content(
+        content="This source contains normal external context.",
+        source_type=source_type,
+        source_id=f"{source_type}_1",
+    )
+
+    assert ingested.source_type == source_type
+    assert ingested.source_id == f"{source_type}_1"
+
+
+def test_control_core_rejects_unknown_external_source_type(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    core = ControlCore()
+
+    with pytest.raises(PermissionDeniedError, match="External source type must be one of"):
+        core.ingest_external_content(
+            content="This source contains normal external context.",
+            source_type="unknown_source",
+            source_id="source_1",
+        )
+
+
+def test_control_core_rejects_blank_external_source_metadata(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    core = ControlCore()
+
+    with pytest.raises(PermissionDeniedError, match="External source type cannot be empty"):
+        core.ingest_external_content(
+            content="This source contains normal external context.",
+            source_type="   ",
+            source_id="source_1",
+        )
+
+    with pytest.raises(PermissionDeniedError, match="External source ID cannot be empty"):
+        core.ingest_external_content(
+            content="This source contains normal external context.",
+            source_type="web_page",
+            source_id="   ",
+        )
 
 
 def test_control_core_redacts_external_source_metadata(tmp_path, monkeypatch):
