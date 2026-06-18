@@ -6,6 +6,18 @@ from services.prompt_injection_guard import PromptInjectionGuard
 from services.redaction import redact_text
 
 
+ALLOWED_EXTERNAL_SOURCE_TYPES = frozenset(
+    {
+        "browser_text",
+        "document",
+        "email",
+        "file",
+        "manual_note",
+        "web_page",
+    }
+)
+
+
 @dataclass(frozen=True)
 class IngestedContent:
     source_type: str
@@ -33,17 +45,32 @@ class UntrustedContentIngestion:
         source_id: str,
         trusted: bool = False,
     ) -> IngestedContent:
+        normalized_source_type = source_type.strip()
+        normalized_source_id = source_id.strip()
+
         if not content or not content.strip():
             raise PermissionDeniedError("Empty external content cannot be ingested.")
 
+        if not normalized_source_type:
+            raise PermissionDeniedError("External source type cannot be empty.")
+
+        if normalized_source_type not in ALLOWED_EXTERNAL_SOURCE_TYPES:
+            allowed = ", ".join(sorted(ALLOWED_EXTERNAL_SOURCE_TYPES))
+            raise PermissionDeniedError(
+                f"External source type must be one of: {allowed}."
+            )
+
+        if not normalized_source_id:
+            raise PermissionDeniedError("External source ID cannot be empty.")
+
         safe_content = redact_text(content)
-        safe_source_type = redact_text(source_type)
-        safe_source_id = redact_text(source_id)
+        safe_source_type = redact_text(normalized_source_type)
+        safe_source_id = redact_text(normalized_source_id)
         redacted = any(
             (
                 safe_content != content,
-                safe_source_type != source_type,
-                safe_source_id != source_id,
+                safe_source_type != normalized_source_type,
+                safe_source_id != normalized_source_id,
             )
         )
 
