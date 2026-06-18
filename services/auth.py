@@ -2,8 +2,11 @@ import os
 import secrets
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import Header, HTTPException, status
 
+
+load_dotenv()
 
 OWNER_API_KEY_ENV = "RAPHAEL_OWNER_API_KEY"
 OWNER_API_KEY_HEADER = "X-Raphael-Owner-Key"
