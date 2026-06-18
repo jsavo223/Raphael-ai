@@ -1,8 +1,9 @@
+from agents.training_agent import TrainingAgent
+from services.chat_service import ChatService
 from services.control_core import ControlCore
 from services.event_store import EventStore
 from services.mission_store import MissionStore
 from services.training_store import TrainingStore
-from agents.training_agent import TrainingAgent
 
 
 def build_test_control_core(tmp_path):
@@ -91,3 +92,17 @@ def test_redaction_protects_stored_mission_goal(tmp_path):
 
     assert "super-secret-value" not in mission.goal
     assert "[REDACTED]" in mission.goal
+
+
+def test_chat_service_returns_simple_user_facing_response(tmp_path):
+    control_core = build_test_control_core(tmp_path)
+    chat_service = ChatService(control_core)
+
+    response = chat_service.handle_message("Build a simple landing page")
+
+    assert response["mission_id"]
+    assert response["status"] == "completed"
+    assert response["progress"]["progress_percentage"] == 100
+    assert response["next_action"] == "review_result"
+    assert "reply" in response
+    assert "completed" in response["reply"]
