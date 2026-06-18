@@ -6,6 +6,12 @@ Raphael is being built as a hybrid assistant-agent system: simple to talk to lik
 
 Build Raphael as a stable, scalable, adaptive multi-agent system with one authoritative control path for task decomposition, execution, evaluation, repair, learning, and progress reporting.
 
+## Device Strategy
+
+Raphael must be usable from an iPhone first, while keeping heavy agent execution off the phone. The iPhone experience should act as a lightweight communication hub for chat, approvals, status checks, imports, and exports.
+
+Raphael must also be portable to the user's ASUS computer later. The backend should remain standard Python/FastAPI, use simple environment configuration, avoid phone-only assumptions, and keep a clean migration path from mobile-controlled use to a full desktop or web command center.
+
 ## Product Direction
 
 Raphael should support this user flow:
@@ -28,6 +34,7 @@ Raphael should support this user flow:
 - Secure tool access: terminal, files, browser, email, calendar, and deployment tools require allowlists, sandboxing, and approval levels.
 - Continuous verification: tests, CI, and safety checks must run before major expansion.
 - Mobile-first control: the iPhone app is a communication/import/export hub, while heavy agent work runs off-device.
+- ASUS-ready backend: the same agent backend should be able to run on the user's ASUS computer with minimal setup changes.
 - Future command center: a web dashboard should later show missions, agents, logs, approvals, updates, downloads, and profit/user tracking.
 
 ## What Raphael Is Not
@@ -37,16 +44,18 @@ Raphael should support this user flow:
 - Not a terminal that can freely run anything.
 - Not a system where workers can self-modify.
 - Not an app repo or social app codebase.
+- Not locked to only one device.
 
 ## Current Build Priority Order
 
 1. Keep the repo separated from the app project.
 2. Keep the chat-style interface simple.
 3. Maintain mission/event/training safety.
-4. Add tests and CI before expanding autonomy.
-5. Add rate limits and input limits.
-6. Add a tool permission registry.
-7. Add sandbox rules for terminal and file access.
-8. Add prompt-injection defenses before web/browser/file ingestion.
-9. Add agent departments and manager agents after core safety is stable.
-10. Build the future command center after core agents are reliable.
+4. Preserve iPhone-first control and ASUS-computer portability.
+5. Add tests and CI before expanding autonomy.
+6. Add rate limits and input limits.
+7. Add a tool permission registry.
+8. Add sandbox rules for terminal and file access.
+9. Add prompt-injection defenses before web/browser/file ingestion.
+10. Add agent departments and manager agents after core safety is stable.
+11. Build the future command center after core agents are reliable.
