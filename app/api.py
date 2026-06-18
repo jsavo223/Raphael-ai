@@ -4,8 +4,10 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, validator
 
 from services.auth import require_owner_api_key
+from services.chat_service import ChatService
 from services.control_core import ControlCore
 from services.limits import (
+    MAX_CHAT_MESSAGE_LENGTH,
     MAX_EVIDENCE_ITEM_LENGTH,
     MAX_EVIDENCE_ITEMS,
     MAX_MISSION_GOAL_LENGTH,
@@ -22,6 +24,11 @@ app = FastAPI(
 )
 
 control_core = ControlCore()
+chat_service = ChatService(control_core)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=MAX_CHAT_MESSAGE_LENGTH)
 
 
 class MissionRequest(BaseModel):
@@ -62,6 +69,14 @@ def health():
     }
 
 
+@app.post("/chat")
+def chat(
+    request: ChatRequest,
+    _owner: bool = Depends(require_owner_api_key),
+):
+    return chat_service.handle_message(request.message)
+
+
 @app.get("/health")
 def detailed_health(_owner: bool = Depends(require_owner_api_key)):
     return {
@@ -69,7 +84,8 @@ def detailed_health(_owner: bool = Depends(require_owner_api_key)):
         "mission_store": "connected",
         "event_store": "connected",
         "worker_pool": "connected",
-        "training_agent": "connected"
+        "training_agent": "connected",
+        "chat_service": "connected"
     }
 
 
