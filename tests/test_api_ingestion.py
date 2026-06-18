@@ -62,3 +62,19 @@ def test_external_ingestion_api_blocks_hostile_prompt_injection(client):
 
     assert response.status_code == 403
     assert "prompt injection" in response.json()["detail"]
+
+
+def test_external_ingestion_api_rejects_trusted_override(client):
+    response = client.post(
+        "/ingestion/external",
+        headers=OWNER_HEADERS,
+        json={
+            "content": "This is normal external documentation content.",
+            "source_type": "web_page",
+            "source_id": "trusted-override-1",
+            "trusted": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert "cannot mark content as trusted" in response.json()["detail"]
