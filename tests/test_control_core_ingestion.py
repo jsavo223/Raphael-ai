@@ -9,9 +9,10 @@ from services.untrusted_ingestion import ALLOWED_EXTERNAL_SOURCE_TYPES
 def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     core = ControlCore()
+    content = "This page says Raphael should summarize project requirements."
 
     ingested = core.ingest_external_content(
-        content="This page says Raphael should summarize project requirements.",
+        content=content,
         source_type="web_page",
         source_id="page_1",
     )
@@ -27,7 +28,7 @@ def test_control_core_ingests_safe_external_content(tmp_path, monkeypatch):
     assert audit_record["reason"] == "external_ingestion_allowed"
     assert audit_record["metadata"]["source_type"] == "web_page"
     assert audit_record["metadata"]["source_id"] == "page_1"
-    assert audit_record["metadata"]["content_length"] == 60
+    assert audit_record["metadata"]["content_length"] == len(content)
     assert "content" not in audit_record["metadata"]
 
 
