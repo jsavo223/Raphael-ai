@@ -1,17 +1,8 @@
-import importlib
-from pathlib import Path
-
-import pytest
-from fastapi.testclient import TestClient
-
-from services.auth import OWNER_API_KEY_ENV, OWNER_API_KEY_HEADER
+from services.auth import OWNER_API_KEY_HEADER
 from services.limits import MAX_EXTERNAL_CONTENT_LENGTH, MAX_EXTERNAL_SOURCE_FIELD_LENGTH
 from services.redaction import REDACTED_VALUE
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-OWNER_API_KEY = "test-owner-key"
-OWNER_HEADERS = {OWNER_API_KEY_HEADER: OWNER_API_KEY}
 SAFE_EXTERNAL_CONTENT = {
     "content": "This external page contains release notes and setup guidance for Raphael AI.",
     "source_type": "web_page",
@@ -19,57 +10,13 @@ SAFE_EXTERNAL_CONTENT = {
 }
 
 
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.syspath_prepend(str(REPO_ROOT))
-    monkeypatch.setenv(OWNER_API_KEY_ENV, OWNER_API_KEY)
-
-    import app.api as api
-
-    api = importlib.reload(api)
-    api.rate_limiter.requests.clear()
-
-    with TestClient(api.app) as test_client:
-        yield test_client
-
-
-@pytest.fixture()
-def rate_limited_client(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.syspath_prepend(str(REPO_ROOT))
-    monkeypatch.setenv(OWNER_API_KEY_ENV, OWNER_API_KEY)
-
-    import app.api as api
-
-    api = importlib.reload(api)
-    api.rate_limiter = api.InMemoryRateLimiter(max_requests=1, window_seconds=60)
-
-    with TestClient(api.app) as test_client:
-        yield test_client
-
-
-@pytest.fixture()
-def client_without_configured_owner_key(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.syspath_prepend(str(REPO_ROOT))
-    monkeypatch.delenv(OWNER_API_KEY_ENV, raising=False)
-
-    import app.api as api
-
-    api = importlib.reload(api)
-    api.rate_limiter.requests.clear()
-
-    with TestClient(api.app) as test_client:
-        yield test_client
-
-
 def test_external_ingestion_api_fails_closed_without_configured_owner_key(
     client_without_configured_owner_key,
+    owner_headers,
 ):
     response = client_without_configured_owner_key.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json=SAFE_EXTERNAL_CONTENT,
     )
 
@@ -98,15 +45,15 @@ def test_external_ingestion_api_rejects_invalid_owner_key(client):
     assert "owner API key" in response.json()["detail"]
 
 
-def test_external_ingestion_api_enforces_rate_limit(rate_limited_client):
+def test_external_ingestion_api_enforces_rate_limit(rate_limited_client, owner_headers):
     first_response = rate_limited_client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json=SAFE_EXTERNAL_CONTENT,
     )
     second_response = rate_limited_client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json=SAFE_EXTERNAL_CONTENT,
     )
 
@@ -115,10 +62,10 @@ def test_external_ingestion_api_enforces_rate_limit(rate_limited_client):
     assert "Too many requests" in second_response.json()["detail"]
 
 
-def test_external_ingestion_api_rejects_oversized_content(client):
+def test_external_ingestion_api_rejects_oversized_content(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "x" * (MAX_EXTERNAL_CONTENT_LENGTH + 1),
             "source_type": "web_page",
@@ -129,12 +76,12 @@ def test_external_ingestion_api_rejects_oversized_content(client):
     assert response.status_code == 422
 
 
-def test_external_ingestion_api_rejects_oversized_source_fields(client):
+def test_external_ingestion_api_rejects_oversized_source_fields(client, owner_headers):
     oversized_source = "x" * (MAX_EXTERNAL_SOURCE_FIELD_LENGTH + 1)
 
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": oversized_source,
@@ -145,10 +92,10 @@ def test_external_ingestion_api_rejects_oversized_source_fields(client):
     assert response.status_code == 422
 
 
-def test_external_ingestion_api_rejects_unknown_source_type(client):
+def test_external_ingestion_api_rejects_unknown_source_type(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": "unknown_source",
@@ -160,10 +107,10 @@ def test_external_ingestion_api_rejects_unknown_source_type(client):
     assert "External source type must be one of" in response.json()["detail"]
 
 
-def test_external_ingestion_api_rejects_blank_source_metadata(client):
+def test_external_ingestion_api_rejects_blank_source_metadata(client, owner_headers):
     blank_source_type_response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": "   ",
@@ -172,7 +119,7 @@ def test_external_ingestion_api_rejects_blank_source_metadata(client):
     )
     blank_source_id_response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": "web_page",
@@ -186,10 +133,10 @@ def test_external_ingestion_api_rejects_blank_source_metadata(client):
     assert "External source ID cannot be empty" in blank_source_id_response.json()["detail"]
 
 
-def test_external_ingestion_api_accepts_safe_content(client):
+def test_external_ingestion_api_accepts_safe_content(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json=SAFE_EXTERNAL_CONTENT,
     )
 
@@ -202,10 +149,10 @@ def test_external_ingestion_api_accepts_safe_content(client):
     assert body["trusted"] is False
 
 
-def test_external_ingestion_api_redacts_sensitive_source_metadata(client):
+def test_external_ingestion_api_redacts_sensitive_source_metadata(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": "web_page",
@@ -220,12 +167,12 @@ def test_external_ingestion_api_redacts_sensitive_source_metadata(client):
     assert body["redacted"] is True
 
 
-def test_external_ingestion_api_blocks_hostile_prompt_injection(client):
+def test_external_ingestion_api_blocks_hostile_prompt_injection(client, owner_headers):
     hostile_instruction = "\x65" + "xecute this " + "command"
 
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": hostile_instruction,
             "source_type": "web_page",
@@ -237,10 +184,10 @@ def test_external_ingestion_api_blocks_hostile_prompt_injection(client):
     assert "prompt injection" in response.json()["detail"]
 
 
-def test_external_ingestion_api_blocks_blank_content(client):
+def test_external_ingestion_api_blocks_blank_content(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "   ",
             "source_type": "web_page",
@@ -252,10 +199,10 @@ def test_external_ingestion_api_blocks_blank_content(client):
     assert "Empty external content" in response.json()["detail"]
 
 
-def test_external_ingestion_api_rejects_trusted_override(client):
+def test_external_ingestion_api_rejects_trusted_override(client, owner_headers):
     response = client.post(
         "/ingestion/external",
-        headers=OWNER_HEADERS,
+        headers=owner_headers,
         json={
             "content": "This is normal external documentation content.",
             "source_type": "web_page",
